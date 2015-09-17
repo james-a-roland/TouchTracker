@@ -29,6 +29,8 @@ class DrawView: UIView {
         tapRecognizer.requireGestureRecognizerToFail(doubleTapRecognizer)
         addGestureRecognizer(tapRecognizer)
         
+        let longPressRecognizer = UILongPressGestureRecognizer(target: self, action: "longPress:")
+        addGestureRecognizer(longPressRecognizer)
     }
     
     func strokeLine(line: Line) {
@@ -164,5 +166,21 @@ class DrawView: UIView {
         }
         // If nothing is close enough to the tapped point, then we did not select a line
         return nil
+    }
+    
+    func longPress(gestureRecognizer: UIGestureRecognizer) {
+        println("Recognized al ong press")
+        if gestureRecognizer.state == .Began {
+            let point = gestureRecognizer.locationInView(self)
+            selectedLineIndex = indexOfLineAtPoint(point)
+            
+            if selectedLineIndex != nil {
+                currentLines.removeAll (keepCapacity: false)
+            }
+        }
+        else if gestureRecognizer.state == .Ended {
+            selectedLineIndex = nil
+        }
+        setNeedsDisplay()
     }
 }
