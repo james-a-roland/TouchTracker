@@ -13,6 +13,23 @@ class DrawView: UIView {
     //We must wrap Touch objects, as they are not allowed to be retained
     var currentLines = [NSValue:Line]()
     var finishedLines = [Line]()
+    var selectedLineIndex: Int?
+    
+    required init(coder aDecoder: NSCoder) {
+        super.init(coder: aDecoder)
+        
+        //Tap is short, Touch is long
+        let doubleTapRecognizer = UITapGestureRecognizer(target: self, action: "doubleTap:")
+        doubleTapRecognizer.numberOfTapsRequired = 2
+        doubleTapRecognizer.delaysTouchesBegan = true //Necessary for overriding touchesBegan
+        addGestureRecognizer(doubleTapRecognizer)
+        
+        let tapRecognizer = UITapGestureRecognizer(target: self, action: "tap:")
+        tapRecognizer.delaysTouchesBegan = true
+        tapRecognizer.requireGestureRecognizerToFail(doubleTapRecognizer)
+        addGestureRecognizer(tapRecognizer)
+        
+    }
     
     func strokeLine(line: Line) {
         let path = UIBezierPath()
@@ -25,9 +42,19 @@ class DrawView: UIView {
     }
     
     override func drawRect(rect: CGRect) {
-        UIColor.blackColor().setStroke()
         for line in finishedLines {
             strokeLine(line)
+        }
+        
+        UIColor.redColor().setStroke()
+        for (key,line) in currentLines {
+            strokeLine(line)
+        }
+        
+        if let index = selectedLineIndex {
+            UIColor.greenColor().setStroke()
+            let selectedLine = finishedLines[index]
+            strokeLine(selectedLine)
         }
     }
     
@@ -52,7 +79,7 @@ class DrawView: UIView {
         }
         setNeedsDisplay() //Calls the drawrect method.
     }
-
+    
     override func touchesEnded(touches: Set<NSObject>, withEvent event: UIEvent) {
         println(__FUNCTION__)
         
@@ -77,4 +104,65 @@ class DrawView: UIView {
         setNeedsDisplay()
     }
     
+    override func canBecomeFirstResponder() -> Bool {
+        return true
+    }
+    
+    func doubleTap(gestureRecognizer: UIGestureRecognizer) {
+        println("Recognized a double tap")
+        
+        currentLines.removeAll(keepCapacity: false)
+        finishedLines.removeAll(keepCapacity: false)
+        setNeedsDisplay()
+    }
+    
+    func tap(gestureRecognizer: UIGestureRecognizer) {
+        println("Recognized a tap")
+        
+        let point = gestureRecognizer.locationInView(self)
+        selectedLineIndex = indexOfLineAtPoint(point)
+        setNeedsDisplay()
+        
+        let menu = UIMenuController.sharedMenuController()
+        if selectedLineIndex != nil {
+            self.becomeFirstResponder()
+            //Make ourselves the target of menu item action messages.
+            
+            let deleteItem = UIMenuItem(title: "Delete", action: "deleteLine:")
+            menu.menuItems = [deleteItem]
+            
+            menu.setTargetRect(CGRect(x: point.x, y: point.y, width: 2, height: 2), inView: self)
+            menu.setMenuVisible(true, animated: true)
+        }
+        else {
+            menu.setMenuVisible(false, animated: true)
+        }
+    }
+    
+    func deleteLine(sender:AnyObject) {
+        if let index = selectedLineIndex {
+            finishedLines.removeAtIndex(index)
+            selectedLineIndex = nil
+            setNeedsDisplay()
+        }
+    }
+    
+    func indexOfLineAtPoint(point: CGPoint) -> Int? {
+        // Find a line close to point
+        for (index, line) in enumerate(finishedLines) {
+            let begin = line.begin
+            let end = line.end
+            // Check a few points on the line
+            for var t: CGFloat = 0; t < 1.0; t += 0.05 {
+                let x = begin.x + ((end.x - begin.x) * t)
+                let y = begin.y + ((end.y - begin.y) * t)
+                // If the tapped point is within 20 points, let's return this line
+                if hypot(x - point.x, y - point.y) < 20.0 {
+                    return index
+                }
+            }
+        }
+        // If nothing is close enough to the tapped point, then we did not select a line
+        return nil
+    }
 }
